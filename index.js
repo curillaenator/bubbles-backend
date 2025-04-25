@@ -21,15 +21,15 @@ const tgBot = new TelegramBot(BOT_TOKEN, { polling: true });
 tgBot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
 
-  tgBot.sendMessage(chatId, "Добро пожаловать!", {
+  tgBot.sendMessage(chatId, "Please click Dive to continue 👽", {
     reply_markup: {
-      keyboard: [[{ text: "Dive in! 👽", web_app: { url: WEB_APP_URL } }]],
+      keyboard: [[{ text: "Dive", web_app: { url: WEB_APP_URL } }]],
       resize_keyboard: true,
     },
   });
 });
 
-app.get("/health-check", (req, res) => {
+app.get("/", (req, res) => {
   res.status(200).send("Бот работает");
 });
 
@@ -63,12 +63,16 @@ app.post("/bot-data", async (req, res) => {
   }
 });
 
-https
-  .createServer(
-    {
-      key: fs.readFileSync("key.pem"),
-      cert: fs.readFileSync("cert.pem"),
-    },
-    app
-  )
-  .listen(PORT, () => console.log(`server is up on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Backend работает на http://localhost:${PORT}`);
+});
+
+// https
+//   .createServer(
+//     {
+//       key: fs.readFileSync("key.pem"),
+//       cert: fs.readFileSync("cert.pem"),
+//     },
+//     app
+//   )
+//   .listen(PORT, () => console.log(`server is up on port ${PORT}`));
