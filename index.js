@@ -6,26 +6,24 @@ const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
 const cors = require("cors");
 
-const port = process.env.PORT || 3000;
-const botToken = process.env.BOT_TOKEN;
-const frontendUrl = process.env.FRONTEND_URL;
+const PORT = process.env.PORT || 3000;
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const WEB_APP_URL = process.env.FRONTEND_URL;
 
 const app = express();
 
-app.use(cors());
+app.use(cors({ origin: WEB_APP_URL, methods: ["GET", "POST"] }));
 app.use(express.static("public"));
 app.use(express.json());
 
-const tgBot = new TelegramBot(botToken, { polling: true });
+const tgBot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 tgBot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
 
-  tgBot.sendMessage(chatId, "Открой приложение:", {
+  tgBot.sendMessage(chatId, "Добро пожаловать!", {
     reply_markup: {
-      keyboard: [
-        [{ text: "Открыть приложение", web_app: { url: frontendUrl } }],
-      ],
+      keyboard: [[{ text: "Dive in! 👽", web_app: { url: WEB_APP_URL } }]],
       resize_keyboard: true,
     },
   });
@@ -38,6 +36,10 @@ app.get("/health-check", (req, res) => {
 app.post("/bot-data", async (req, res) => {
   const { queryId, content, clientSupport } = req.body;
 
+  if (!queryId || !content || !clientSupport) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
   try {
     tgBot.answerWebAppQuery(queryId, {
       id: queryId,
@@ -48,6 +50,8 @@ app.post("/bot-data", async (req, res) => {
 
     return res.status(200).json({});
   } catch (error) {
+    console.error("AnswerWebAppQuery error:", error);
+
     tgBot.answerWebAppQuery(queryId, {
       type: "article",
       id: queryId,
@@ -67,4 +71,4 @@ https
     },
     app
   )
-  .listen(port, () => console.log(`server is up on port ${port}`));
+  .listen(PORT, () => console.log(`server is up on port ${PORT}`));
