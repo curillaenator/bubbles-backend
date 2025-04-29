@@ -8,7 +8,7 @@ const cors = require("cors");
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const WEB_APP_URL = process.env.FRONTEND_URL;
+const WEB_APP_URL = process.env.WEB_APP_URL;
 
 const app = express();
 
