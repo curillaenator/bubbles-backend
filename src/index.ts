@@ -1,35 +1,33 @@
-require("dotenv").config();
+import "dotenv/config";
+// import https from "https";
+// import fs from "fs";
+import express from "express";
+import cors from "cors";
+import TelegramBot, { Message } from "node-telegram-bot-api";
+import { cert, initializeApp, type ServiceAccount } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
-const firebaseAdmin = require("firebase-admin");
-const firebaseServiceAccount = require("./firebase-service-account.json");
+import firebaseServiceAccount from "./firebase-service-account.json";
 
-// const https = require("https");
-// const fs = require("fs");
-const TelegramBot = require("node-telegram-bot-api");
-const express = require("express");
-const cors = require("cors");
+const WEB_APP_ORIGIN = process.env.WEB_APP_ORIGIN || "";
+const TG_BOTNAME = process.env.TG_BOTNAME || "";
+const BOT_TOKEN = process.env.BOT_TOKEN || "";
+const FIREBASE_RTDB_URL = process.env.FIREBASE_RTDB_URL || "";
 
-const PORT = process.env.PORT || 3000;
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const WEB_APP_ORIGIN = process.env.WEB_APP_ORIGIN;
-const TG_BOTNAME = process.env.TG_BOTNAME;
-
-firebaseAdmin.initializeApp({
-  credential: firebaseAdmin.credential.cert(firebaseServiceAccount),
-  databaseURL:
-    "https://art-app-2020-default-rtdb.europe-west1.firebasedatabase.app",
+initializeApp({
+  credential: cert(firebaseServiceAccount as ServiceAccount),
+  databaseURL: FIREBASE_RTDB_URL,
 });
 
-const fsdb = firebaseAdmin.firestore();
+const fsdb = getFirestore();
 const app = express();
 
-// app.use(cors({ origin: WEB_APP_ORIGIN, methods: ["GET", "POST"] }));
-app.use(cors());
-
+app.use(cors({ origin: process.env.WEB_APP_ORIGIN, methods: ["GET", "POST"] }));
+// app.use(cors());
 app.use(express.static("public"));
 app.use(express.json());
 
-const tgBot = new TelegramBot(BOT_TOKEN, { polling: true });
+const tgBot = new TelegramBot(BOT_TOKEN as string, { polling: true });
 
 tgBot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
@@ -51,26 +49,23 @@ tgBot.onText(/\/start/, (msg) => {
   });
 
   try {
-    const chatId = msg.chat.id;
-
-    const payload = {
-      msgId: msg.message_id,
-      chat: msg.chat,
-      from: msg.from,
-      date: msg.date,
-    };
-
     fsdb
       .collection(`${TG_BOTNAME}chats`)
-      .doc(`${chatId}`)
-      .set(payload, { merge: true })
-      .then(() => payload);
+      .doc(`${msg.chat.id}`)
+      .set(
+        {
+          msgId: msg.message_id,
+          date: msg.date,
+          ...msg.from,
+        },
+        { merge: true }
+      );
   } catch (error) {
     console.error(error);
   }
 });
 
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.status(200).send("Бот работает");
 });
 
@@ -80,14 +75,14 @@ app.post("/bot-data", async (req, res) => {
   const { actionType, payload } = req.body;
 
   switch (actionType) {
-    case "remind":
+    case "remind": {
       const { chats = [], message } = payload;
 
-      chats.forEach((chatId) => tgBot.sendMessage(chatId, message));
-
-      tgBot.sendMessage();
+      chats.forEach((chatId: number | string) => {
+        tgBot.sendMessage(chatId, message);
+      });
       break;
-
+    }
     default:
       break;
   }
@@ -114,6 +109,8 @@ app.post("/bot-data", async (req, res) => {
   //   return res.status(500).json({});
   // }
 });
+
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`Backend работает на http://localhost:${PORT}`);
