@@ -3,11 +3,13 @@ import "dotenv/config";
 // import fs from "fs";
 import express from "express";
 import cors from "cors";
-import TelegramBot, { Message } from "node-telegram-bot-api";
+import TelegramBot from "node-telegram-bot-api";
 import { cert, initializeApp, type ServiceAccount } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
 import firebaseServiceAccount from "./firebase-service-account.json";
+
+import type { BotDataReqBody, SendAllChatsPayload } from "./interfaces";
 
 const WEB_APP_ORIGIN = process.env.WEB_APP_ORIGIN || "";
 const TG_BOTNAME = process.env.TG_BOTNAME || "";
@@ -70,44 +72,25 @@ app.get("/", (_req, res) => {
 });
 
 app.post("/bot-data", async (req, res) => {
-  console.log("BOT_DATA", req.body);
-
-  const { actionType, payload } = req.body;
+  const { actionType } = req.body as BotDataReqBody;
 
   switch (actionType) {
-    case "remind": {
-      const { chats = [], message } = payload;
+    case "send-to-all": {
+      const { chats = [], message } = (
+        req.body as BotDataReqBody<SendAllChatsPayload>
+      ).payload;
 
-      chats.forEach((chatId: number | string) => {
-        tgBot.sendMessage(chatId, message);
+      chats.forEach(({ id }) => {
+        console.log("MESSAGE SENT", id);
+        tgBot.sendMessage(id, message);
       });
+
+      res.status(200).send("ok");
       break;
     }
     default:
       break;
   }
-
-  // try {
-  //   tgBot.answerWebAppQuery(queryId, {
-  //     id: queryId,
-  //     type: "article",
-  //     title: "Success!",
-  //     input_message_content: { message_text: `${content}\n\n${clientSupport}` },
-  //   });
-
-  //   return res.status(200).json({});
-  // } catch (error) {
-  //   console.error("AnswerWebAppQuery error:", error);
-
-  //   tgBot.answerWebAppQuery(queryId, {
-  //     type: "article",
-  //     id: queryId,
-  //     title: "Error!",
-  //     input_message_content: { message_text: "Something went wrong" },
-  //   });
-
-  //   return res.status(500).json({});
-  // }
 });
 
 const PORT = process.env.PORT || 3000;
