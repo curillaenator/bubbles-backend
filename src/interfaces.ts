@@ -16,9 +16,21 @@ interface SendAllChatsPayload {
   message: string;
 }
 
+interface ApplicationPayload {
+  uid: string;
+  chatId: string;
+  botname: string;
+  application: string;
+}
+
 interface BotDataReqBody<P = string> {
-  actionType: "send-to-all";
+  actionType: "send-to-all" | "send-application";
   payload: P;
 }
 
-export type { TgChatMeta, SendAllChatsPayload, BotDataReqBody };
+export type {
+  TgChatMeta,
+  SendAllChatsPayload,
+  BotDataReqBody,
+  ApplicationPayload,
+};

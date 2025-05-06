@@ -3,13 +3,20 @@ import "dotenv/config";
 // import fs from "fs";
 import express from "express";
 import cors from "cors";
-import TelegramBot from "node-telegram-bot-api";
+import TelegramBot, { ChatId } from "node-telegram-bot-api";
 import { cert, initializeApp, type ServiceAccount } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
+import { getOrderMessage, getReplyMessage } from "./utils";
+
 import firebaseServiceAccount from "./firebase-service-account.json";
 
-import type { BotDataReqBody, SendAllChatsPayload } from "./interfaces";
+import type {
+  TgChatMeta,
+  BotDataReqBody,
+  SendAllChatsPayload,
+  ApplicationPayload,
+} from "./interfaces";
 
 const WEB_APP_ORIGIN = process.env.WEB_APP_ORIGIN || "";
 const TG_BOTNAME = process.env.TG_BOTNAME || "";
@@ -21,15 +28,13 @@ initializeApp({
   databaseURL: FIREBASE_RTDB_URL,
 });
 
+const tgBot = new TelegramBot(BOT_TOKEN as string, { polling: true });
 const fsdb = getFirestore();
 const app = express();
 
 app.use(cors({ origin: process.env.WEB_APP_ORIGIN, methods: ["GET", "POST"] }));
-// app.use(cors());
 app.use(express.static("public"));
 app.use(express.json());
-
-const tgBot = new TelegramBot(BOT_TOKEN as string, { polling: true });
 
 tgBot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
@@ -72,24 +77,79 @@ app.get("/", (_req, res) => {
 });
 
 app.post("/bot-data", async (req, res) => {
-  const { actionType } = req.body as BotDataReqBody;
+  try {
+    const { actionType } = req.body as BotDataReqBody;
 
-  switch (actionType) {
-    case "send-to-all": {
-      const { chats = [], message } = (
-        req.body as BotDataReqBody<SendAllChatsPayload>
-      ).payload;
+    switch (actionType) {
+      case "send-to-all": {
+        const { chats = [], message } = (
+          req.body as BotDataReqBody<SendAllChatsPayload>
+        ).payload;
 
-      chats.forEach(({ id }) => {
-        console.log("MESSAGE SENT", id);
-        tgBot.sendMessage(id, message);
-      });
+        chats.forEach(({ id }) => tgBot.sendMessage(id, message));
 
-      res.status(200).send("ok");
-      break;
+        console.log("MESSAGES SENT");
+
+        res.status(200).json({ status: "ok" });
+        break;
+      }
+
+      case "send-application": {
+        const { uid, chatId, botname, application } = (
+          req.body as BotDataReqBody<ApplicationPayload>
+        ).payload;
+
+        const promises = [
+          fsdb
+            .collection(`${botname}chats`)
+            .doc(chatId)
+            .get()
+            .then((snap) => (snap.exists ? (snap.data() as TgChatMeta) : null)),
+
+          fsdb
+            .collection("users")
+            .doc(uid)
+            .get()
+            .then((snap) =>
+              snap.exists
+                ? (snap.data() as { chatId: ChatId; telegram: string })
+                : null
+            ),
+        ];
+
+        const [chatMeta, botOwner] = (await Promise.all(promises)) as [
+          TgChatMeta | null,
+          { chatId: ChatId; telegram: string } | null
+        ];
+
+        if (!chatMeta || !botOwner) {
+          return res
+            .status(500)
+            .json({ status: "fail", message: "cannot place application" });
+        }
+
+        await tgBot.sendMessage(
+          botOwner.chatId,
+          getOrderMessage(chatMeta, application)
+        );
+
+        await tgBot.sendMessage(
+          chatMeta.id,
+          getReplyMessage(botOwner.telegram)
+        );
+
+        return res.status(200).json({ status: "ok" });
+      }
+
+      default: {
+        return res
+          .status(400)
+          .json({ message: `failed actionType ${actionType}` });
+      }
     }
-    default:
-      break;
+  } catch (error) {
+    console.error("Internal error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 
